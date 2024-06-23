@@ -1,48 +1,42 @@
+const mongoose = require('mongoose');
 const app = require("./app");
 const { config } = require("dotenv");
-const connectDatabase = require("./config/database");
-const Razorpay=require("razorpay")
-const cloudinary=require('cloudinary')
 
-
-// handling uncaught error
 process.on("uncaughtException", (err) => {
-  console.log(`Error: ${err.message}`);
-  console.log("shutting down the server due to uncaught error...........");
+  console.error(`Error: ${err.message}`);
+  console.error("Shutting down the server due to uncaught exception...");
   process.exit(1);
 });
 
-
-// env config
 config({ path: "config/config.env" });
 
-          
-cloudinary.config({ 
-  cloud_name: process.env.cloud_name, 
-  api_key:process.env.cloud_api_key, 
-  api_secret:process.env.cloud_api_secret 
-});
+const connectDatabase = async () => {
+  try {
+    const data = await mongoose.connect(process.env.DB_URI);
+    console.log(`Database is connected at server: ${data.connection.host}`);
+  } catch (err) {
+    console.error("Error while connecting to database:", err.message);
+    process.exit(1); // Exit the process if the database connection fails
+  }
+};
 
+const startServer = () => {
+  const server = app.listen(process.env.PORT, () =>
+    console.log(`App is running at port ${process.env.PORT}`)
+  );
 
-// initiating razorpay instance
-exports.instance = new Razorpay({ key_id:process.env.RAZORPAY_ID,key_secret:process.env.RAZORPAY_KEY})
-
-
-// database connection
-connectDatabase();
-
-// app listening at port
-const server = app.listen(process.env.PORT, () =>
-  console.log(`app is running at port ${process.env.PORT}`)
-);
-
-// unhandled promise rejection
-process.on("unhandledRejection", (err) => {
-  console.log(`Error: ${err.message}`);
-  console.log("shutting down the server due to Unhandled promise rejection...........");
-  server.close(() => {
-    process.exit(1);
+  process.on("unhandledRejection", (err) => {
+    console.error(`Error: ${err.message}`);
+    console.error("Shutting down the server due to unhandled promise rejection...");
+    server.close(() => {
+      process.exit(1);
+    });
   });
-});
+};
 
+const init = async () => {
+  await connectDatabase();
+  startServer();
+};
 
+init();

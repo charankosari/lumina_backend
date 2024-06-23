@@ -1,0 +1,108 @@
+const mongoose = require("mongoose");
+const validator = require("validator");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const { type } = require("os");
+
+const serviceSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, "Please enter your name"],
+    maxlength: [40, "Name should not exceed 40 characters"],
+    minlength: [4, "Name should not be less than 4 characters"],
+  },
+  email: {
+    type: String,
+    required: [true, "Please enter your email"],
+    unique: true,
+    validate: [validator.isEmail, "Please enter a valid email"],
+  },
+  number: {
+    type: Number,
+    unique: true,
+    validate: {
+      validator: function (v) {
+        return /^\d{10}$/.test(v.toString());
+      },
+      message: props => `${props.value} is not a valid 10-digit number!`
+    },
+    required: true,
+  },
+  amount: {
+    type: Number,
+    required: [true, "Please enter the amount"],
+  },
+  service: {
+    type: String,
+    required: [true, "Please enter the service type"],
+  },
+  bookingIds: {
+    type: Map,
+    of: Map,
+    default: {},
+  },
+  image:{
+    required:true,
+    type:String
+  },
+  description: {
+    type: String,
+    required: [true, "Please enter the service description"],
+  },
+  password: {
+    type: String,
+    required: [true, "Please enter your password"],
+    minlength: [8, "Password should be greater than 8 characters"],
+    select: false,
+  }, addresses: [
+    {
+      address: {
+        type: String,
+        required: [true, "Please enter an address"]
+      },
+      pincode: {
+        type: String,
+        required: [true, "Please enter pincode"],
+      }
+    }
+  ],
+  role: {
+    type: String,
+    default: "service",
+  },
+  resetPasswordToken: String,
+  resetPasswordExpire: Date,
+});
+  // pre hook to check weather password is modified
+  serviceSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) {
+      next();
+    }
+    this.password = await bcrypt.hash(this.password, 10);
+  });
+
+  // generate Jwttoken
+  serviceSchema.methods.jwtToken = function() {
+    return jwt.sign({ id: this._id }, process.env.jwt_secret, {
+      expiresIn: process.env.jwt_epire,
+    });
+  };
+
+  // password compare
+  serviceSchema.methods.comparePassword = async function (password) {
+    console.log(password,this.password)
+    console.log(bcrypt.compare(password,this.password))
+    return await bcrypt.compare(password, this.password);
+    
+  };
+
+  serviceSchema.methods.resetToken= function(){
+    const token=crypto.randomBytes(20).toString("hex")
+    const hashedToken=crypto.createHash("sha256").update(token).digest("hex")
+    this.resetPasswordToken=hashedToken
+    this.resetPasswordExpire=Date.now()+(1000*60*60*24*15)
+    return token
+  }
+
+module.exports = mongoose.model("Service", serviceSchema);

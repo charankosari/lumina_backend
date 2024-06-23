@@ -35,110 +35,71 @@ const userSchema = new mongoose.Schema({
     minlength: [8,"password should be greaterthan 8 characters"],
     select: false,
   },
-  avatar:{
-    public_id: {
-      type: String,
-      // required: true,
-    },
-    url: {
-      type: String,
-      // required: true,
-    },
-  },
   wishList:[
     {
-      product:{
+      service:{
         type:mongoose.Schema.ObjectId,
         ref:"Product"
       }
     }
   ],
 
-  cart: [
+  bookings: [
     {
-      product: {
+      service: {
         type: mongoose.Schema.ObjectId,
         ref: "Product",
-      },
-      quantity: {
-        type: Number,
-        default: 1,
-      },
+      }
     },
   ],
-  addresses:[
-{
-  name:{
-    type:String,
-    required:true
-  },
-  email:{
-    type:String,
-    required:true
-  },
-  address:{
-    type:String,
-    required:true
-  },
-  country:{
-    type:String,
-    required:true
-},
-state:{
-    type:String,
-    required:true
-},
-city:{
-    type:String,
-    required:true
-},
-pin:{
-    type:Number,
-    required:true
-},
-mobile:{
-    type:Number,
-    required:true
-}
-}
+  addresses: [
+    {
+      address: {
+        type: String,
+        required: [true, "Please enter an address"]
+      },
+      pincode: {
+        type: String,
+        required: [true, "Please enter pincode"],
+      }
+    }
   ],
-  
   role:{
     type: String,
     default:"user",
   },
-  resetPasswordToken: String,
-  resetPasswordExpire: Date,
-});
-
-// pre hook to check weather password is modified
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) {
-    next();
-  }
-  this.password = await bcrypt.hash(this.password, 10);
-});
-
-// generate Jwttoken
-userSchema.methods.jwtToken = function() {
-  return jwt.sign({ id: this._id }, process.env.jwt_secret, {
-    expiresIn: process.env.jwt_epire,
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
   });
-};
 
-// password compare
-userSchema.methods.comparePassword = async function (password) {
-  console.log(password,this.password)
-  return await bcrypt.compare(password, this.password);
-  
-};
+  // pre hook to check weather password is modified
+  userSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) {
+      next();
+    }
+    this.password = await bcrypt.hash(this.password, 10);
+  });
 
-userSchema.methods.resetToken= function(){
-  const token=crypto.randomBytes(20).toString("hex")
-  const hashedToken=crypto.createHash("sha256").update(token).digest("hex")
-  this.resetPasswordToken=hashedToken
-  this.resetPasswordExpire=Date.now()+(1000*60*60*24*15)
-  return token
-}
+  // generate Jwttoken
+  userSchema.methods.jwtToken = function() {
+    return jwt.sign({ id: this._id }, process.env.jwt_secret, {
+      expiresIn: process.env.jwt_epire,
+    });
+  };
 
-module.exports = mongoose.model("User", userSchema);
+  // password compare
+  userSchema.methods.comparePassword = async function (password) {
+    console.log(password,this.password)
+    return await bcrypt.compare(password, this.password);
+    
+  };
+
+  userSchema.methods.resetToken= function(){
+    const token=crypto.randomBytes(20).toString("hex")
+    const hashedToken=crypto.createHash("sha256").update(token).digest("hex")
+    this.resetPasswordToken=hashedToken
+    this.resetPasswordExpire=Date.now()+(1000*60*60*24*15)
+    return token
+  }
+
+  module.exports = mongoose.model("User", userSchema);

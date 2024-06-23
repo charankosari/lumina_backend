@@ -1,67 +1,98 @@
 const asyncHandler = require("../middleware/asynchandler");
 const errorHandler = require("../utils/errorHandler");
 const User = require("../models/userModel");
-const Product=require("../models/productModels")
+// const Product=require("../models/productModels")
 const sendJwt = require("../utils/jwttokenSend");
+const mongoose = require("mongoose");
 const sendEmail=require("../utils/sendEmail")
-const crypto=require("crypto")
-const cloudinary=require("../utils/cloudinary")
+const Service=require('../models/serviceModel')
+const Booking=require('../models/BookingModel')
+const crypto=require("crypto");
+const moment =require('moment');
 const fs=require("fs");
-const { whitelist } = require("validator");
-const { execPath } = require("process");
+const {
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+} = require('@google/generative-ai');
+const apiKey = 'AIzaSyA9W5F2U1NFt4rBFM0jpV1tormKU2Ehy2Y';
+const genAI = new GoogleGenerativeAI(apiKey);
+const model = genAI.getGenerativeModel({
+  model: 'gemini-1.5-pro',
+  systemInstruction: `California Company provides a wide range of home services, including cleaning, plumbing, electrical work, beauty services, and home painting. The dataset should include various customer inquiries and detailed responses that reflect these services. For example, a customer might ask, "Can you recommend a reliable cleaning service?" and the response would be, "Certainly! California Company offers top-notch cleaning services that are both thorough and reliable. Our professional cleaners are highly trained and use eco-friendly products to ensure your home is spotless." Similarly, for a question like "I need assistance with plumbing repairs. Any suggestions?", the response could be, "Of course! California Company has experienced plumbers who can handle all types of plumbing repairs efficiently and affordably." By training your model with these kinds of exchanges, it will learn to adopt a friendly and helpful tone, while accurately recommending California Company's services. This approach ensures the model can effectively address customer queries and promote the company's offerings, providing a seamless and informative user experience. Include a heading tone and give how to answer it. And the response should be less than 20 words`,
+});
 
+const generationConfig = {
+  temperature: 1,
+  topP: 0.95,
+  topK: 64,
+  maxOutputTokens: 8192,
+  responseMimeType: 'text/plain',
+};
 
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+];
 
 // user register
 exports.register = asyncHandler(async (req, res, next) => {  
-  const { name, email, password, number,address} = req.body;  
+  const { name, email, password, number,address,gender} = req.body;  
   console.log(address)
-  // checking if file present in request
-  // if(req.file==undefined){
-  //   return next(new errorHandler("provide avatar", 401));~
-  //   }
-  // uploading into cloudinary
-  // const uploaded=await cloudinary(req.file)
-  // const avatar={public_id:uploaded.public_id,url:uploaded.url}
-
-  const avatar=""
-  // checking user existance
+ 
   let user = await User.findOne({ email });
+  let userno=await User.findOne({number});
   if (user) {
-    return next(new errorHandler("user already exist", 401));
+    return next(new errorHandler("Email already exist", 401));
+  }
+  if (userno) {
+    return next(new errorHandler("Number already exist", 401));
   }
   user = await User.create({
     name,
     email,
     password,
-    avatar,
     number,
-    address
+    address,
+    gender
   });
-  //sending response
   sendJwt(user, 201,"registerd successfully", res);  
 });
 
 //user login
-exports.login = asyncHandler(async (req,res,next) => {
-
-  const { email, password } = req.body;
-
-  if (email == "" || password == "") {
-    return next(new errorHandler("Enter Email and Password", 403));
+exports.login = asyncHandler(async (req, res, next) => {
+  const { email, number, password } = req.body;
+  if ((!email && !number) || !password) {
+    return next(new errorHandler("Enter Email/Number and Password", 403));
   }
-  const user = await User.findOne({ email }).select("+password");
+  let user;
+  if (email) {
+    user = await User.findOne({ email }).select("+password");
+  } else if (number) {
+    user = await User.findOne({ number }).select("+password");
+  }
   if (!user) {
-    return next(new errorHandler("Invalid Email or Password", 403));
+    return next(new errorHandler("Invalid Email/Number or Password", 403));
   }
-  //conparing password
   const passwordMatch = await user.comparePassword(password);
-
   if (!passwordMatch) {
-    return next(new errorHandler("Invalid Email or Password", 403));
+    return next(new errorHandler("Invalid Email/Number or Password", 403));
   }
-  //sending response
-  sendJwt(user, 200,"login successfully", res);
+  sendJwt(user, 200, "Login successful", res);
 });
 
 // forgot password
@@ -73,8 +104,7 @@ exports.forgotPassword=asyncHandler(async(req,res,next)=>{
   }
  
   const token=user.resetToken()
-  // const resetUrl=`http://localhost:5080/api/v1/resetpassword/${token}`
-  const resetUrl=`http://127.0.0.1:5173/resetpassword/${token}`
+  const resetUrl=`http://localhost:5173/resetpassword/${token}`
   const message=`your reset url is ${resetUrl} leave it if you didnt requested for it`
   await user.save({validateBeforeSave:false})
   try{
@@ -218,37 +248,33 @@ exports.deleteUser=asyncHandler(async(req,res,next)=>{
 })
 
 // whishlist products________________________________________________________________________
-exports.wishListProduct=asyncHandler(async(req,res,next)=>{
-  console.log("wishlll")
-  const productId=req.params.id
+exports.wishListService=asyncHandler(async(req,res,next)=>{
+  const serviceId=req.params.id
   const userId=req.user.id
   let user=await User.findById(userId)
   const wishList=user.wishList 
-  console.log(wishList)
-  const itemExist=wishList.find((each)=>each.product==productId)
+  const itemExist=wishList.find((each)=>each.service==serviceId)
 
   if(itemExist){
-  const newWishlist=wishList.filter((each)=>each.product!=productId)
+  const newWishlist=wishList.filter((each)=>each.service!=serviceId)
   user.wishList=newWishlist 
   await user.save({validateBeforeSave:false})
   return res.status(200).json({success:true,message:"Product removed from Wishlist successfully"})
-    // return next(new errorHandler(`Product with ${productId} already wishlisted`),400) 
   }
-  wishList.push({"product":productId})
-  console.log(wishList)
+  wishList.push({"service":serviceId})
   user.wishList=wishList
   await user.save({validateBeforeSave:false})
-  return res.status(200).json({success:true,message:"Product wishlisted successfully"})
+  return res.status(200).json({success:true,message:"Service wishlisted successfully"})
 })
 
 // remove product form wishlist______________________________________________________________
 exports.RemovewishListProduct=asyncHandler(async(req,res,next)=>{
-  const productId=req.params.id
-  console.log(productId)
+  const serviceId=req.params.id
+  console.log(serviceId)
   const userId=req.user.id
   let user=await User.findById(userId)
   const wishList=user.wishList 
-  const newWishlist=wishList.filter((each)=>each.product!=productId)
+  const newWishlist=wishList.filter((each)=>each.service!=serviceId)
   user.wishList=newWishlist 
   await user.save({validateBeforeSave:false})
   res.status(200).json({success:true,message:"Product remover from Wishlist successfully"})
@@ -271,7 +297,6 @@ exports.getWishlist=asyncHandler(async(req,res,next)=>{
       return item
     })
   )
-
 res.status(200).json({message:"wishlistData",success:true,data:wishlistData})
 })
 
@@ -283,88 +308,96 @@ exports.deleteWishlist=asyncHandler(async(req,res,next)=>{
   user.save({validateBeforeSave:false})
   res.status(200).json({success:true,message:"Wishlist is empty successfully"})
 })
-
-// add item to cart increase quantity if already present_____________________________________
-exports.AddCartItem=asyncHandler(async(req,res,next)=>{
-  const userId=req.user.id
-  const productId=req.params.id 
-  const quantity=req.body.quantity
-  const user=await User.findById(userId)
-  const product=await Product.findById(productId)
- 
-  let cartDetails={
-    "product":productId,
-    quantity:quantity
+//add booking
+const generateBookingId = () => {
+  return Math.floor(10000 + Math.random() * 90000);
+};
+exports.addBooking = asyncHandler(async (req, res, next) => {
+  try {
+    const { name, phonenumber, email, amountpaid, serviceid, date } = req.body;
+    const userid = req.user.id;
+    const service = await Service.findById(serviceid);
+    const user = await User.findById(userid);
+    if (!service) {
+      return res.status(404).json({ message: 'Service not found' });
     }
-
-  const isCarted=user.cart.findIndex((each)=>each.product==productId)
-  if(isCarted!=-1){
-  user.cart[isCarted].quantity+=1
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const formattedDate = moment(date, "DD-MM-YYYY").format('DD-MM-YYYY');
+    if (!service.bookingIds.has(formattedDate)) {
+      return res.status(400).json({ message: 'No slots available for the selected date' });
+    }
+    console.log("Slots for the date:", slots);
+    let slotFound = false;
+    let slotId = null;
+    for (const [key, value] of slots.entries()) {
+      if (value === null) {
+        slotFound = true;
+        slotId = key;
+        break;
+      }
+    }
+    if (!slotFound) {
+      return res.status(400).json({ message: 'No slots available for the selected date' });
+    }
+    const bookingId = generateBookingId();
+    const booking = new Booking({
+      name,
+      userid,
+      phonenumber,
+      email,
+      amountpaid,
+      serviceid,
+      date: moment(date, "DD-MM-YYYY").toDate(),
+      bookingId
+    });
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      await booking.save({ session });
+      console.log('Booking saved:', booking);
+      user.bookings.push(booking._id);
+      await user.save({ session });
+      console.log('User updated with new booking:', user);
+      slots.set(slotId, booking._id);
+      service.bookingIds.set(formattedDate, slots);
+      await service.save({ session });
+      console.log('Service updated with new booking:', service);
+      await session.commitTransaction();
+      session.endSession();
+      res.status(201).json({ message: 'Booking created successfully', booking });
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      console.error("Error during session transaction:", error);
+      throw error;
+    }
+  } catch (error) {
+    console.error("Error in addBooking:", error);
+    res.status(500).json({ message: 'Internal server error' });
   }
-  else{
-  user.cart.push(cartDetails) 
+});
+
+exports.getChat = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const user = await User.findById(userId);
+  const userQuestion = req.body.question;
+  const userName = user.name;
+
+  try {
+    const chatSession = model.startChat({
+      generationConfig,
+      safetySettings,
+    });
+
+    const result = await chatSession.sendMessage(userQuestion);
+    res.json({
+      response: result.response.text(), 
+      greet: `hi ${userName}`
+    });
+  } catch (error) {
+    console.error('Error generating response:', error);
+    res.status(500).json({ error: 'Failed to generate response' });
   }
-  await user.save({validateBeforeSave:false})
- res.json({success:true,message:"product added to cart successfully"})
-})
-// remove item from cart _____________________________________
-exports.RemoveCartItem=asyncHandler(async(req,res,next)=>{
-  const userId=req.user.id
-  const {id}=req.params 
-  console.log(id)
-  const user=await User.findById(userId)
-  const newCart=user.cart.filter((each)=>each.product!=id)         
-  user.cart=newCart[0] 
-  await user.save({validateBeforeSave:false})
- res.status(200).json({success:true,message:"item is removed form cart successfully"})
-})
-
-// get all cart details__________________
-exports.getCartDetails=asyncHandler(async(req,res,next)=>{
-  const userId=req.user.id
-  const user=await User.findOne({_id:userId},{cart:1});
-  const cartData = await Promise.all(
-    user.cart.map(async(cartItem)=>{
-      const product = await Product.findOne({_id:cartItem.product},{name:1,images:1,price:1})
-      product.quantity=cartItem.quantity
-      const item = {name:product.name,images:product.images,price:product.price,quantity:cartItem.quantity,id:product.id}
-      return item
-    })
-  )
-
-res.status(200).json({success:true,data:cartData})
-})
-
-// increment cart item quantity________________________________
-exports.updateCartItem=asyncHandler(async(req,res,next)=>{
-  const userId=req.user.id
-  const {id}=req.params
-  const {operation}=req.body
-  console.log(id,operation)
-  console.log(operation)
-  const user=await User.findById(userId)
-
-  const isCarted=user.cart.findIndex((each)=>each.product==id)
-  console.log(isCarted,"iscarted")
-  if(operation=="inc"){
-  user.cart[isCarted].quantity+=1
-  }
-  else{
-  if(user.cart[isCarted].quantity<=0)
-  user.cart[isCarted].quantity=0
-  else
-  user.cart[isCarted].quantity-=1
-  }
-  await user.save({validateBeforeSave:false})
-  res.status(200).json({success:true,message:"cart item quantity updated successfully"})
-
-})
-
-// empty the cart________________________________
-exports.deleteCart=asyncHandler(async(req,res,next)=>{
-  const userId=req.user.id
-  const user=await User.findById(userId)
-  user.cart=[]
-  user.save({validateBeforeSave:false})
-  res.status(200).json({success:true,message:"cart is empty successfully"})
-})
+});
