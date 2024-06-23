@@ -378,13 +378,14 @@ exports.addBooking = asyncHandler(async (req, res, next) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
-
-exports.getChat = asyncHandler(async (req, res, next) => {
+exports.GreetgetChat = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
   const user = await User.findById(userId);
   const userQuestion = req.body.question;
   const userName = user.name;
-
+  if (!user) {
+    return res.status(400).json({ message: "User not found" });
+  }
   try {
     const chatSession = model.startChat({
       generationConfig,
@@ -395,6 +396,26 @@ exports.getChat = asyncHandler(async (req, res, next) => {
     res.json({
       response: result.response.text(), 
       greet: `hi ${userName}`
+    });
+  } catch (error) {
+    console.error('Error generating response:', error);
+    res.status(500).json({ error: 'Failed to generate response' });
+  }
+});
+exports.getChat = asyncHandler(async (req, res, next) => {
+  const user = User.findById(req.user.id);
+  if (!user) {
+    return res.status(400).json({ message: "User not found" });
+  }
+  const userQuestion = req.body.question;
+  try {
+    const chatSession = model.startChat({
+      generationConfig,
+      safetySettings,
+    });
+    const result = await chatSession.sendMessage(userQuestion);
+    res.json({
+      response: result.response.text(), 
     });
   } catch (error) {
     console.error('Error generating response:', error);
