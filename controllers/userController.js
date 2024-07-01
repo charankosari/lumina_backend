@@ -51,7 +51,7 @@ const safetySettings = [
 
 // user register
 exports.register = asyncHandler(async (req, res, next) => {  
-  const { name, email, password, number,address,gender} = req.body;  
+   const { name, email, password, number,address,gender} = req.body;  
   console.log(address)
  
   let user = await User.findOne({ email });

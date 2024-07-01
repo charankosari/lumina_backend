@@ -110,6 +110,8 @@ exports.resetPassword=asyncHandler(async(req,res,next)=>{
   sendJwtSer(ser,201,"reset password successfully",res)
 })
 
+
+
 // update password
 exports.updatePassword=asyncHandler(async(req,res,next)=>{
   const {password,confirmPassword,oldPassword}=req.body
@@ -193,3 +195,8 @@ exports.addMoreSessions = asyncHandler(async (req, res, next) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+exports.getServices=asyncHandler(async(req,res,next)=>{
+  const services=await Service.find()
+  res.status(200).json({success:true,services})
+})
