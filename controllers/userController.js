@@ -102,9 +102,8 @@ exports.forgotPassword=asyncHandler(async(req,res,next)=>{
   if(!user){
     next(new errorHandler("user dosent exit",401))
   }
- 
   const token=user.resetToken()
-  const resetUrl=`http://localhost:5173/resetpassword/${token}`
+  const resetUrl=`http://localhost:3000/resetpassword/${token}`
   const message=`your reset url is ${resetUrl} leave it if you didnt requested for it`
   await user.save({validateBeforeSave:false})
   try{
@@ -123,7 +122,6 @@ exports.forgotPassword=asyncHandler(async(req,res,next)=>{
     next(new errorHandler(e.message,401))
   }
 })
-
 // reset password
 exports.resetPassword=asyncHandler(async(req,res,next)=>{
   const token=req.params.id
