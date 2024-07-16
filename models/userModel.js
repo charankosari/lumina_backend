@@ -43,14 +43,11 @@ const userSchema = new mongoose.Schema({
       }
     }
   ],
-
   bookings: [
     {
-      service: {
-        type: mongoose.Schema.ObjectId,
-        ref: "Product",
-      }
-    },
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking"
+    }
   ],
   addresses: [
     {

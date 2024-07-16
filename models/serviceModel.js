@@ -3,7 +3,6 @@ const validator = require("validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const { type } = require("os");
 
 const serviceSchema = new mongoose.Schema({
   name: {
@@ -38,13 +37,12 @@ const serviceSchema = new mongoose.Schema({
     required: [true, "Please enter the service type"],
   },
   bookingIds: {
-    type: Map,
-    of: Map,
+    type: Object, 
     default: {},
   },
-  image:{
-    required:true,
-    type:String
+  image: {
+    required: true,
+    type: String
   },
   description: {
     type: String,
@@ -55,7 +53,8 @@ const serviceSchema = new mongoose.Schema({
     required: [true, "Please enter your password"],
     minlength: [8, "Password should be greater than 8 characters"],
     select: false,
-  }, addresses: [
+  },
+  addresses: [
     {
       address: {
         type: String,
@@ -74,35 +73,32 @@ const serviceSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpire: Date,
 });
-  // pre hook to check weather password is modified
-  serviceSchema.pre("save", async function (next) {
-    if (!this.isModified("password")) {
-      next();
-    }
-    this.password = await bcrypt.hash(this.password, 10);
-  });
-
-  // generate Jwttoken
-  serviceSchema.methods.jwtToken = function() {
-    return jwt.sign({ id: this._id }, process.env.jwt_secret, {
-      expiresIn: process.env.jwt_epire,
-    });
-  };
-
-  // password compare
-  serviceSchema.methods.comparePassword = async function (password) {
-    console.log(password,this.password)
-    console.log(bcrypt.compare(password,this.password))
-    return await bcrypt.compare(password, this.password);
-    
-  };
-
-  serviceSchema.methods.resetToken= function(){
-    const token=crypto.randomBytes(20).toString("hex")
-    const hashedToken=crypto.createHash("sha256").update(token).digest("hex")
-    this.resetPasswordToken=hashedToken
-    this.resetPasswordExpire=Date.now()+(1000*60*60*24*15)
-    return token
+serviceSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
+    next();
   }
+  this.password = await bcrypt.hash(this.password, 10);
+});
+
+// generate Jwttoken
+serviceSchema.methods.jwtToken = function() {
+  return jwt.sign({ id: this._id }, process.env.jwt_secret, {
+    expiresIn: process.env.jwt_epire,
+  });
+};
+
+// password compare
+serviceSchema.methods.comparePassword = async function (password) {
+  return await bcrypt.compare(password, this.password);
+  
+};
+
+serviceSchema.methods.resetToken= function(){
+  const token=crypto.randomBytes(20).toString("hex")
+  const hashedToken=crypto.createHash("sha256").update(token).digest("hex")
+  this.resetPasswordToken=hashedToken
+  this.resetPasswordExpire=Date.now()+(1000*60*60*24*15)
+  return token
+}
 
 module.exports = mongoose.model("Service", serviceSchema);

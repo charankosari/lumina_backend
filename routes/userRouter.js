@@ -1,6 +1,6 @@
 const express=require('express')
 const router=express.Router()
-const {register, login,logout,forgotPassword,resetPassword,updatePassword,userDetails,profileUpdate, addBooking,GreetgetChat,updateUserRole,deleteUser,getWishlist,wishListService,RemovewishListProduct,deleteWishlist, getChat} =require("../controllers/userController")
+const {register, login,logout,forgotPassword,createBooking,getUserBookings,resetPassword,updatePassword,userDetails,profileUpdate,GreetgetChat,updateUserRole,deleteUser,getWishlist,wishListService,RemovewishListProduct,deleteWishlist, getChat} =require("../controllers/userController")
 const {isAuthorized,roleAuthorize,}=require("../middleware/auth")
 const upload=require('../middleware/multer')
 
@@ -13,7 +13,8 @@ router.route("/resetpassword/:id").post(resetPassword)
 router.route("/me").get(isAuthorized,userDetails)
 router.route("/password/update").put(isAuthorized,updatePassword)
 router.route("/me/profileupdate").put(isAuthorized,profileUpdate)
-router.route('/addbooking').post(isAuthorized,addBooking)
+router.route('/addbooking').post(isAuthorized,createBooking)
+router.route('/getbooking').get(isAuthorized,getUserBookings)
 router.route('/chat').post(isAuthorized,getChat)
 router.route('/greetchat').post(isAuthorized,GreetgetChat)
 

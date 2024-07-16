@@ -9,35 +9,54 @@ const cloudinary=require("../utils/cloudinary")
 const fs=require("fs");
 const { whitelist } = require("validator");
 const { execPath } = require("process");
-const moment =require('moment')
-
-
+const Booking = require('../models/BookingModel')
 
 // user register
-exports.register = asyncHandler(async (req, res, next) => {  
-  const { name, email, password,description, number,amount,service,addresses,image} = req.body;  
- 
-  let ser = await Service.findOne({ email });
-  let serno=await Service.findOne({number});
-  if (ser) {
-    return next(new errorHandler("Email already exist", 401));
+const moment = require('moment');
+exports.register = async (req, res, next) => {
+  const { name, email, password, description, number, amount, service, addresses, image, date, days } = req.body;
+  try {
+    let ser = await Service.findOne({ email });
+    if (ser) {
+      return res.status(401).json({ error: "Email already exists" });
+    }
+    let serno = await Service.findOne({ number });
+    if (serno) {
+      return res.status(401).json({ error: "Number already exists" });
+    }
+    const startDate = moment(date, 'YYYY-MM-DD', true);
+    if (!startDate.isValid()) {
+      return res.status(400).json({ error: "Invalid start date format. Please provide dates in YYYY-MM-DD format." });
+    }
+    const bookingIds = {};
+    for (let i = 0; i < days; i++) {
+      const currentDate = startDate.clone().add(i, 'days').format('YYYY-MM-DD');
+      const subBookingIds = {};
+      for (let j = 1; j <= 10; j++) {
+        subBookingIds[j.toString()] = { id: null }; 
+      }
+      bookingIds[currentDate] = subBookingIds;
+    }
+    ser = await Service.create({
+      name,
+      email,
+      password,
+      number,
+      description,
+      addresses,
+      service,
+      image,
+      amount,
+      date: startDate.format('YYYY-MM-DD'), 
+      bookingIds: bookingIds
+    });
+    sendJwtSer(ser, 201, "Registered successfully", res);
+    
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
-  if (serno) {
-    return next(new errorHandler("Number already exist", 401));
-  }
-  ser = await Service.create({
-    name,
-    email,
-    password,
-    number,
-    description,
-    addresses,
-    service,
-    image,
-    amount
-  });
-  sendJwtSer(ser, 201,"registerd successfully", res);  
-});
+};
 
 //user login
 exports.login = asyncHandler(async (req, res, next) => {
@@ -61,7 +80,6 @@ exports.login = asyncHandler(async (req, res, next) => {
   }
   sendJwtSer(ser, 200, "Login successful", res);
 });
-
 
 // forgot password
 exports.forgotPassword=asyncHandler(async(req,res,next)=>{
@@ -146,10 +164,8 @@ exports.profileUpdate = asyncHandler(async (req, res, next) => {
   const ser = await Service.findById(req.ser.id);
 
   if (!name && !email && !number) {
-    // Only update the address if name, email, and number are not provided
    
   } else {
-    // Update name, email, and number along with the address
     ser.name = name || ser.name;
     ser.email = email || ser.email;
     ser.number = number || ser.number;
@@ -161,40 +177,80 @@ exports.profileUpdate = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.addMoreSessions = asyncHandler(async (req, res, next) => {
+//
+
+exports.getServiceBookings = async (req, res, next) => {
+  const serviceId = req.ser.id;
+  console.log(serviceId)
   try {
-    const { date, noOfDays, count } = req.body;
-    const service = await Service.findById(req.ser.id);
-
+    const service = await Service.findById(serviceId);
     if (!service) {
-      return res.status(404).json({ message: 'Service not found' });
+      return res.status(404).json({ error: 'Service not found' });
     }
 
-    const startDate = moment(date, "DD-MM-YY");
-    if (!startDate.isValid()) {
-      return res.status(400).json({ message: 'Invalid start date' });
-    }
-
-    for (let i = 0; i < noOfDays; i++) {
-      const currentDate = moment(startDate).add(i, 'days');
-      const dateStr = currentDate.format('DD-MM-YY');
-
-      if (!service.bookingIds.has(dateStr)) {
-        const slots = {};
-        for (let j = 0; j < count; j++) {
-          slots[`id${j + 1}`] = null;
+    const bookingIds = [];
+    for (const date in service.bookingIds) {
+      for (const slot in service.bookingIds[date]) {
+        const bookingId = service.bookingIds[date][slot].id;
+        if (bookingId) {
+          bookingIds.push(bookingId);
         }
-        service.bookingIds.set(dateStr, slots);
       }
     }
 
-    await service.save();
-    res.status(201).json({ message: 'Sessions added successfully', service });
-  } catch (error) {
-    console.error("Error in addMoreSessions:", error);
-    res.status(500).json({ message: 'Internal server error' });
+    const bookings = await Booking.find({ _id: { $in: bookingIds } });
+
+    const detailedBookings = await Promise.all(
+      bookings.map(async (booking) => {
+        const user = await User.findById(booking.userid, 'name email phonenumber');
+        return { ...booking.toObject(), user };
+      })
+    );
+
+    res.status(200).json({ bookings: detailedBookings });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
-});
+};
+
+exports.addSlots = async (req, res, next) => {
+  const {  date, days } = req.body;
+const serviceId=req.ser.id;
+  try {
+    const service = await Service.findById(serviceId);
+
+    if (!service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+
+    const startDate = moment(date, 'YYYY-MM-DD', true);
+    if (!startDate.isValid()) {
+      return res.status(400).json({ error: "Invalid start date format. Please provide dates in YYYY-MM-DD format." });
+    }
+    const slotsToAdd = {};
+    for (let i = 0; i < days; i++) {
+      const currentDate = startDate.clone().add(i, 'days').format('YYYY-MM-DD');
+      const subSlots = {};
+      for (let j = 1; j <= 10; j++) {
+        subSlots[j.toString()] = { id: null }; 
+      }
+      slotsToAdd[currentDate] = subSlots;
+    }
+    const updatedBookingIds = { ...service.bookingIds, ...slotsToAdd };
+    const updatedService = await Service.findByIdAndUpdate(
+      serviceId,
+      { $set: { bookingIds: updatedBookingIds } },
+      { new: true }
+    );
+    res.status(200).json({ message: "Slots added successfully", service: updatedService });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
 
 exports.getServices=asyncHandler(async(req,res,next)=>{
   const services=await Service.find()

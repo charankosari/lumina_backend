@@ -51,9 +51,7 @@ const safetySettings = [
 
 // user register
 exports.register = asyncHandler(async (req, res, next) => {  
-   const { name, email, password, number,address,gender} = req.body;  
-  console.log(address)
- 
+   const { name, email, password, number,address} = req.body;  
   let user = await User.findOne({ email });
   let userno=await User.findOne({number});
   if (user) {
@@ -68,7 +66,6 @@ exports.register = asyncHandler(async (req, res, next) => {
     password,
     number,
     address,
-    gender
   });
   sendJwt(user, 201,"registerd successfully", res);  
 });
@@ -310,72 +307,87 @@ exports.deleteWishlist=asyncHandler(async(req,res,next)=>{
 const generateBookingId = () => {
   return Math.floor(10000 + Math.random() * 90000);
 };
-exports.addBooking = asyncHandler(async (req, res, next) => {
+
+exports.createBooking = async (req, res, next) => {
+  const { name, phoneNumber, email, amountpaid, serviceId, date } = req.body;
+  const userId = req.user.id; 
   try {
-    const { name, phonenumber, email, amountpaid, serviceid, date } = req.body;
-    const userid = req.user.id;
-    const service = await Service.findById(serviceid);
-    const user = await User.findById(userid);
+    const service = await Service.findById(serviceId);
     if (!service) {
-      return res.status(404).json({ message: 'Service not found' });
+      return res.status(404).json({ error: "Service not found" });
     }
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+
+    const bookingDate = new Date(date).toISOString().slice(0, 10); // Convert date to YYYY-MM-DD format
+    if (!service.bookingIds || !service.bookingIds[bookingDate]) {
+      return res.status(400).json({ error: "No bookings available for this date" });
     }
-    const formattedDate = moment(date, "DD-MM-YYYY").format('DD-MM-YYYY');
-    if (!service.bookingIds.has(formattedDate)) {
-      return res.status(400).json({ message: 'No slots available for the selected date' });
-    }
-    console.log("Slots for the date:", slots);
-    let slotFound = false;
-    let slotId = null;
-    for (const [key, value] of slots.entries()) {
-      if (value === null) {
-        slotFound = true;
-        slotId = key;
+
+    let availableSlot = null;
+    for (let slot in service.bookingIds[bookingDate]) {
+      if (service.bookingIds[bookingDate][slot].id === null) {
+        availableSlot = slot;
         break;
       }
     }
-    if (!slotFound) {
-      return res.status(400).json({ message: 'No slots available for the selected date' });
+
+    if (!availableSlot) {
+      return res.status(400).json({ error: "Bookings are full for this date" });
     }
-    const bookingId = generateBookingId();
-    const booking = new Booking({
+
+    const newBooking = new Booking({
       name,
-      userid,
-      phonenumber,
+      userid: userId,
+      phonenumber: phoneNumber,
       email,
       amountpaid,
-      serviceid,
-      date: moment(date, "DD-MM-YYYY").toDate(),
-      bookingId
+      serviceid: serviceId,
+      date,
+      bookingId: Math.floor(1000 + Math.random() * 9000), // Generate a random booking ID
     });
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
-      await booking.save({ session });
-      console.log('Booking saved:', booking);
-      user.bookings.push(booking._id);
-      await user.save({ session });
-      console.log('User updated with new booking:', user);
-      slots.set(slotId, booking._id);
-      service.bookingIds.set(formattedDate, slots);
-      await service.save({ session });
-      console.log('Service updated with new booking:', service);
-      await session.commitTransaction();
-      session.endSession();
-      res.status(201).json({ message: 'Booking created successfully', booking });
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      console.error("Error during session transaction:", error);
-      throw error;
+    await newBooking.save();
+    const updatePath = `bookingIds.${bookingDate}.${availableSlot}.id`;
+    await Service.findByIdAndUpdate(serviceId, { $set: { [updatePath]: newBooking._id } });
+    const updatedService = await Service.findById(serviceId);
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
     }
-  } catch (error) {
-    console.error("Error in addBooking:", error);
-    res.status(500).json({ message: 'Internal server error' });
+
+    user.bookings.push(newBooking._id);
+    await user.save();
+
+    res.status(201).json({ message: "Booking created successfully", booking: newBooking });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
-});
+};
+
+exports.getUserBookings = async (req, res, next) => {
+  const userId = req.user.id;
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const bookingIds = user.bookings;
+    const bookings = await Booking.find({ _id: { $in: bookingIds } });
+
+    const detailedBookings = await Promise.all(
+      bookings.map(async (booking) => {
+        const service = await Service.findById(booking.serviceid, 'name email number amount service');
+        return { ...booking.toObject(), service };
+      })
+    );
+
+    res.status(200).json({ bookings: detailedBookings });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 exports.GreetgetChat = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
   const user = await User.findById(userId);
