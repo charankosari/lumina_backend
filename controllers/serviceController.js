@@ -70,7 +70,6 @@ exports.login = asyncHandler(async (req, res, next) => {
   } else if (number) {
     ser = await Service.findOne({ number }).select("+password");
   }
-  console.log(ser)
   if (!ser) {
     return next(new errorHandler("Invalid Email/Number or Password", 403));
   }
