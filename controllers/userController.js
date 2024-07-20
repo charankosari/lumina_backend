@@ -146,6 +146,22 @@ exports.logout = asyncHandler(async (req, res, next) => {
   res.status(200).json({ success: true, message: "logout successfully" });
 });
 
+exports.getServiceById = asyncHandler(async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const service = await Service.findById(id);
+    if (!service) {
+      return res.status(404).json({ success: false, message: 'Service not found' });
+    }
+    res.status(200).json({
+      success: true,
+      data: service,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // update password
 exports.updatePassword=asyncHandler(async(req,res,next)=>{
   const {password,confirmPassword,oldPassword}=req.body
@@ -276,24 +292,28 @@ exports.RemovewishListProduct=asyncHandler(async(req,res,next)=>{
 })
 
 // get all Wishlist details__________________
-exports.getWishlist=asyncHandler(async(req,res,next)=>{
-  const userId=req.user.id
-  const user=await User.findOne({_id:userId},{wishList:1,_id:0});
-  console.log("wishlistData")
-  console.log(user)
-
+exports.getWishlist = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const user = await User.findById(userId);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found', success: false });
+  }
+  console.log('Fetching wishlist data');
   const wishlistData = await Promise.all(
-    user.wishList.map(async(eachItem)=>{
-      console.log(eachItem)
-      const product = await Product.findOne({_id:eachItem.product},{name:1,images:1,price:1,stock:1})
-      // console.log(product)
-      const item = {name:product.name,images:product.images,price:product.price,id:product.id,stock:product.stock}
-      // console.log(item)
-      return item
+    user.wishList.map(async (item) => {
+      console.log(item);
+      try {
+        const service = await Service.findById(item.service);
+        return service;
+      } catch (error) {
+        console.error(`Error fetching service with ID: ${item.service}`, error);
+        return null;
+      }
     })
-  )
-res.status(200).json({message:"wishlistData",success:true,data:wishlistData})
-})
+  );
+  const filteredWishlistData = wishlistData.filter(service => service !== null);
+  res.status(200).json({ message: 'wishlistData', success: true, data: filteredWishlistData });
+});
 
 // empty the wishlist_______________________________________
 exports.deleteWishlist=asyncHandler(async(req,res,next)=>{
