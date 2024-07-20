@@ -19,10 +19,6 @@ const apiKey = 'AIzaSyA9W5F2U1NFt4rBFM0jpV1tormKU2Ehy2Y';
 const genAI = new GoogleGenerativeAI(apiKey);
 
 
-// const model = genAI.getGenerativeModel({
-//   model: 'gemini-1.5-pro',
-//   systemInstruction: `OneApp is a trusted California company offering a range of essential home services. Our electricians provide expert repairs and installations to ensure your electrical systems are safe and efficient. We also offer plumbing services for leaks, repairs, and installations, addressing all your plumbing needs. For air conditioner repair, our skilled technicians ensure your cooling system operates flawlessly, keeping you comfortable throughout the year. Our home cleaning service delivers thorough and personalized cleaning solutions to maintain a spotless home. Additionally, our landscaping team enhances your outdoor spaces with professional design and maintenance. At OneApp, we are dedicated to delivering reliable and affordable services with a focus on your satisfaction. Warm regards from the OneApp team!`,
-// });
 
 const generationConfig = {
   temperature: 1,
@@ -55,10 +51,11 @@ const initializeModel = async () => {
   try {
     const users = await User.find().lean(); 
     const services = await Service.find().lean(); 
-    const Bookings=await Booking.find().lean();
-    const BookingData= JSON.stringify(Bookings, null, 2);
+    const bookings = await Booking.find().lean();
     const userData = JSON.stringify(users, null, 2); 
     const serviceData = JSON.stringify(services, null, 2); 
+    const bookingData = JSON.stringify(bookings, null, 2); 
+
     const systemInstruction = `OneApp is a trusted California company offering a range of essential home services. We provide detailed information about our users and services to ensure accurate and personalized responses.
     **User Data:**
     ${userData}
@@ -67,23 +64,36 @@ const initializeModel = async () => {
     ${serviceData}
 
     **Booking Data:**
-    ${BookingData}
+    ${bookingData}
 
-    if anyone asks about the bookign details get details from booking ids for that user and with that user booking details find from bookings data and give him the data
+    If anyone asks about the booking details, get details from booking IDs for that user and, with that, user booking details found from bookings data and give him the data.
     
-    does not provide sensitive data
+    Does not provide sensitive data.
 
     At OneApp, we are committed to delivering reliable and affordable services with a focus on customer satisfaction. Our chatbot is equipped with detailed user and service data to provide accurate responses and assist with various inquiries. Warm regards from the OneApp team!`;
-    
+
     model = genAI.getGenerativeModel({
       model: 'gemini-1.5-pro',
       systemInstruction: systemInstruction,
     });
+
+    console.log('Model initialized successfully.');
+
   } catch (error) {
     console.error('Error initializing model:', error);
   }
 };
+const refreshModelData = async () => {
+  try {
+    await initializeModel(); 
+  } catch (error) {
+    console.error('Error refreshing model data:', error);
+  }
+};
+
 initializeModel();
+const fetchInterval = 300000/5;
+setInterval(refreshModelData, fetchInterval);
 
 // user register
 exports.register = asyncHandler(async (req, res, next) => {  
