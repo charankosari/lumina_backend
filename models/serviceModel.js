@@ -19,7 +19,7 @@ const reviewSchema = new mongoose.Schema({
     type: String,
     required: [true, "Please provide a comment"],
   },
-});
+}, { _id : false });
 const serviceSchema = new mongoose.Schema({
   name: {
     type: String,

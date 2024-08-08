@@ -501,26 +501,19 @@ exports.getChat = asyncHandler(async (req, res, next) => {
 
 
 //review
-
 exports.createReview = asyncHandler(async (req, res, next) => {
-  const { rating, comment,serviceId } = req.body;
+  const { rating, comment, serviceId } = req.body;
   const userId = req.user.id;
-
   const service = await Service.findById(serviceId);
-
   if (!service) {
     res.status(404);
     throw new Error('Service not found');
   }
-
- 
-  const user = await User.findById(userId); // Assuming you have a User model
-
+  const user = await User.findById(userId); 
   if (!user) {
     res.status(404);
     throw new Error('User not found');
   }
-
   const review = {
     username: user.name,
     rating: Number(rating),
@@ -528,9 +521,16 @@ exports.createReview = asyncHandler(async (req, res, next) => {
   };
 
   service.reviews.push(review);
-  service.numReviews = service.reviews.length;
-  service.overallRating = (service.totalRating+review.rating) /2
-  await service.save();
+  service.numReviews += 1;
+  if (service.numReviews === 1) {
 
+    service.overallRating += review.rating;
+  }
+  else{
+    service.overallRating += review.rating;
+  service.overallRating = service.overallRating / 2;
+
+  }
+  await service.save();
   res.status(201).json({ message: 'Review added' });
 });
