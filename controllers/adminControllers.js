@@ -15,7 +15,7 @@ res.status(200).json({
 });
 })
 exports.getAllServices=asyncHandler(async(req,res,next)=>{
-    const items_to_return='_id name email number address service addresses '
+    const items_to_return='_id name email number address service addresses role'
 const services=await Service.find().select(items_to_return)
 res.status(200).json({
     success: true,
