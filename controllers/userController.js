@@ -67,8 +67,8 @@ const initializeModel = async () => {
     ${bookingData}
 
     If anyone asks about the booking details, get details from booking IDs for that user and, with that, user booking details found from bookings data and give him the data.
-    
-    Does not provide sensitive data.
+
+    Oneapp provides electricians,airconditioner repair,plumbers,home cleaners,landscaping as services at now
 
     At OneApp, we are committed to delivering reliable and affordable services with a focus on customer satisfaction. Our chatbot is equipped with detailed user and service data to provide accurate responses and assist with various inquiries. Warm regards from the OneApp team!`;
 
@@ -497,4 +497,40 @@ exports.getChat = asyncHandler(async (req, res, next) => {
     console.error('Error generating response:', error);
     res.status(500).json({ error: 'Failed to generate response' });
   }
+});
+
+
+//review
+
+exports.createReview = asyncHandler(async (req, res, next) => {
+  const { rating, comment,serviceId } = req.body;
+  const userId = req.user.id;
+
+  const service = await Service.findById(serviceId);
+
+  if (!service) {
+    res.status(404);
+    throw new Error('Service not found');
+  }
+
+ 
+  const user = await User.findById(userId); // Assuming you have a User model
+
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  const review = {
+    username: user.name,
+    rating: Number(rating),
+    comment,
+  };
+
+  service.reviews.push(review);
+  service.numReviews = service.reviews.length;
+  service.overallRating = (service.totalRating+review.rating) /2
+  await service.save();
+
+  res.status(201).json({ message: 'Review added' });
 });

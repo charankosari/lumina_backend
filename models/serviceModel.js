@@ -4,6 +4,22 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 
+const reviewSchema = new mongoose.Schema({
+  rating: {
+    type: Number,
+    required: [true, "Please provide a rating (1-5)"],
+    min: [1, "Rating must be at least 1"],
+    max: [5, "Rating must be at most 5"],
+  },
+  username: {
+    type: String,
+    required: [true, "Please provide your username"],
+  },
+  comment: {
+    type: String,
+    required: [true, "Please provide a comment"],
+  },
+});
 const serviceSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -66,9 +82,22 @@ const serviceSchema = new mongoose.Schema({
       }
     }
   ],
+  numReviews: {
+    type: Number,
+    default: 0,
+    required:false
+  },
+  overallRating: {
+    type: Number,
+    default: 0,
+    required:false
+  },
   role: {
     type: String,
     default: "service",
+  },
+  reviews: {
+    type: [reviewSchema],
   },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
