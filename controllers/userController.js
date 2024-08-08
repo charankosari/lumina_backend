@@ -62,6 +62,7 @@ const initializeModel = async () => {
 
     **Service Data:**
     ${serviceData}
+    air conditioner repair , plumbers, electricians ,home cleaners, landscapaing are the five services offering by the one app
 
     **Booking Data:**
     ${bookingData}
