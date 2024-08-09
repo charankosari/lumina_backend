@@ -55,7 +55,7 @@ exports.getIncomeData = asyncHandler(async (req, res, next) => {
         services.forEach(service => {
             serviceIdToNameMap[service._id] = service.service;
             serviceWiseIncome[service.service] = 0; 
-            employeeIncomes[service._id] = 0; 
+            employeeIncomes[service.name] = 0; 
         });
         bookings.forEach(booking => {
             const date = booking.date.toISOString().split('T')[0];
