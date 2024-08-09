@@ -46,32 +46,58 @@ exports.getIncomeData = asyncHandler(async (req, res, next) => {
     try {
         const services = await Service.find({});
         const bookings = await Booking.find({});
+        
+        // Map service IDs to service names and types
+        const serviceIdToNameMap = {}; // For employee incomes
+        const serviceIdToTypeMap = {}; // For service-wise income
+        services.forEach(service => {
+            serviceIdToNameMap[service._id] = service.name; // Employee income map
+            serviceIdToTypeMap[service._id] = service.service; // Service income map
+        });
 
         let totalIncome = 0;
-        const serviceWiseIncome = {};
-        const employeeIncomes = {};
+        const serviceWiseIncome = {}; // By service type
+        const employeeIncomes = {}; // By employee name
         const dailyIncome = {};
-        const serviceIdToNameMap = {};
+
+        // Initialize income tracking
         services.forEach(service => {
-            serviceIdToNameMap[service._id] = service.service;
-            serviceWiseIncome[service.service] = 0; 
-            employeeIncomes[service.name] = 0; 
+            // Initialize service-wise income with service type
+            if (!serviceWiseIncome[service.service]) {
+                serviceWiseIncome[service.service] = 0;
+            }
+            // Initialize employee incomes with employee name
+            if (!employeeIncomes[service.name]) {
+                employeeIncomes[service.name] = 0;
+            }
         });
+
+        // Calculate income data
         bookings.forEach(booking => {
             const date = booking.date.toISOString().split('T')[0];
             const serviceId = booking.serviceid;
+            const amountPaid = booking.amountpaid;
+
+            // Track daily income
             if (!dailyIncome[date]) {
                 dailyIncome[date] = 0;
             }
-            dailyIncome[date] += booking.amountpaid;
-            const serviceName = serviceIdToNameMap[serviceId];
-            if (serviceName) {
-                serviceWiseIncome[serviceName] += booking.amountpaid;
+            dailyIncome[date] += amountPaid;
+
+            // Track service-wise income by service type
+            const serviceType = serviceIdToTypeMap[serviceId];
+            if (serviceType) {
+                serviceWiseIncome[serviceType] = (serviceWiseIncome[serviceType] || 0) + amountPaid;
             }
-            if (employeeIncomes.hasOwnProperty(serviceId)) {
-                employeeIncomes[serviceId] += booking.amountpaid;
+
+            // Track employee incomes by employee name
+            const employeeName = serviceIdToNameMap[serviceId];
+            if (employeeName) {
+                employeeIncomes[employeeName] = (employeeIncomes[employeeName] || 0) + amountPaid;
             }
-            totalIncome += booking.amountpaid;
+
+            // Total income
+            totalIncome += amountPaid;
         });
 
         res.status(200).json({
@@ -83,4 +109,4 @@ exports.getIncomeData = asyncHandler(async (req, res, next) => {
     } catch (error) {
         next(error);
     }
-});
+}); 
