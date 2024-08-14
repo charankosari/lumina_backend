@@ -24,8 +24,6 @@ const serviceSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, "Please enter your name"],
-    maxlength: [40, "Name should not exceed 40 characters"],
-    minlength: [4, "Name should not be less than 4 characters"],
   },
   email: {
     type: String,
@@ -36,12 +34,7 @@ const serviceSchema = new mongoose.Schema({
   number: {
     type: Number,
     unique: true,
-    validate: {
-      validator: function (v) {
-        return /^\d{10}$/.test(v.toString());
-      },
-      message: props => `${props.value} is not a valid 10-digit number!`
-    },
+   
     required: true,
   },
   amount: {
@@ -67,7 +60,6 @@ const serviceSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, "Please enter your password"],
-    minlength: [8, "Password should be greater than 8 characters"],
     select: false,
   },
   addresses: [
