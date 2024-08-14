@@ -121,9 +121,9 @@ exports.register = asyncHandler(async (req, res, next) => {
 
 //user login
 exports.login = asyncHandler(async (req, res, next) => {
-  const { email, number, password } = req.body;
-  if ((!email && !number) || !password) {
-    return next(new errorHandler("Enter Email/Number and Password", 403));
+  const { email, number, password ,name} = req.body;
+  if ((!email && !number && !name) || !password) {
+    return next(new errorHandler("Enter Email/Number/Name and Password", 403));
   }
   let user;
   if (email) {
@@ -131,8 +131,11 @@ exports.login = asyncHandler(async (req, res, next) => {
   } else if (number) {
     user = await User.findOne({ number }).select("+password");
   }
+   else if(name) {
+    user = await User.findOne({ name }).select("+password");
+  }
   if (!user) {
-    return next(new errorHandler("Invalid Email/Number or Password", 403));
+    return next(new errorHandler("Invalid Email/Number/Name or Password", 403));
   }
   const passwordMatch = await user.comparePassword(password);
   if (!passwordMatch) {
