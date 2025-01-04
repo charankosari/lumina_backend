@@ -2,101 +2,98 @@ const mongoose = require("mongoose");
 const validator = require("validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const crypto=require("crypto");
-const { type } = require("os");
+const crypto = require("crypto");
 
 const userSchema = new mongoose.Schema({
-  name:{
+  name: {
     type: String,
-    required: [true, "Please Enter  Username"],
-    maxlength: [40, "username should not exceed morethan 40 characters"],
-    minlength: [4, "username should not be lessthan 4 characters"],
+    required: [true, "Please Enter Username"],
+    maxlength: [40, "Username should not exceed more than 40 characters"],
+    minlength: [4, "Username should not be less than 4 characters"],
   },
-  email:{
+  email: {
     type: String,
     required: [true, "Please Enter User Email"],
-    unique:true,
+    unique: true,
     validate: [validator.isEmail, "Please enter valid email"],
   },
-  number:{
-    type:Number,
-    unique:true,
+  number: {
+    type: Number,
+    unique: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return /^\d{10}$/.test(v.toString());
       },
-      message: props => `${props.value} is not a valid 10-digit number!`
+      message: (props) => `${props.value} is not a valid 10-digit number!`,
     },
-    required:true,
+    required: true,
   },
-  password:{
+  password: {
     type: String,
     required: [true, "Please Enter User Password"],
-    minlength: [8,"password should be greaterthan 8 characters"],
+    minlength: [8, "Password should be greater than 8 characters"],
     select: false,
   },
-  wishList:[
+  cart: [
     {
-      service:{
-        type:mongoose.Schema.ObjectId,
-        ref:"Product"
-      }
-    }
+      type: mongoose.Schema.ObjectId,
+      ref: "Product", // Store only product IDs in the cart
+    },
   ],
   bookings: [
     {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Booking"
-    }
+      ref: "Booking",
+    },
   ],
-  addresses: [
-    {
-      address: {
-        type: String,
-        required: [true, "Please enter an address"]
-      },
-      pincode: {
-        type: String,
-        required: [true, "Please enter pincode"],
-      }
-    }
-  ],
-  role:{
+  role: {
     type: String,
-    default:"user",
+    default: "user",
   },
-    resetPasswordToken: String,
-    resetPasswordExpire: Date,
-  });
+  resetPasswordToken: String,
+  resetPasswordExpire: Date,
+});
 
-  // pre hook to check weather password is modified
-  userSchema.pre("save", async function (next) {
-    if (!this.isModified("password")) {
-      next();
-    }
-    this.password = await bcrypt.hash(this.password, 10);
-  });
+// Pre hook to check whether password is modified
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
+    next();
+  }
+  this.password = await bcrypt.hash(this.password, 10);
+});
 
-  // generate Jwttoken
-  userSchema.methods.jwtToken = function() {
-    return jwt.sign({ id: this._id }, process.env.jwt_secret, {
-      expiresIn: process.env.jwt_epire,
-    });
-  };
+// Generate JWT token
+userSchema.methods.jwtToken = function () {
+  let expiresIn = process.env.jwt_expire || "2d"; // Default to '2d' if not set
 
-  // password compare
-  userSchema.methods.comparePassword = async function (password) {
-    console.log(password,this.password)
-    return await bcrypt.compare(password, this.password);
-    
-  };
-
-  userSchema.methods.resetToken= function(){
-    const token=crypto.randomBytes(20).toString("hex")
-    const hashedToken=crypto.createHash("sha256").update(token).digest("hex")
-    this.resetPasswordToken=hashedToken
-    this.resetPasswordExpire=Date.now()+(1000*60*60*24*15)
-    return token
+  // Ensure it's a string or number
+  if (typeof expiresIn === "string" || typeof expiresIn === "number") {
+    return jwt.sign({ id: this._id }, process.env.jwt_secret, { expiresIn });
   }
 
-  module.exports = mongoose.model("User", userSchema);
+  throw new Error("Invalid expiresIn value");
+};
+
+// Password compare
+userSchema.methods.comparePassword = async function (password) {
+  console.log(password, this.password);
+  return await bcrypt.compare(password, this.password);
+};
+
+// Generate reset token
+userSchema.methods.resetToken = function () {
+  const token = crypto.randomBytes(20).toString("hex");
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+  this.resetPasswordToken = hashedToken;
+  this.resetPasswordExpire = Date.now() + 1000 * 60 * 60 * 24 * 15;
+  return token;
+};
+
+// Method to get all products in cart, populated with product details
+userSchema.methods.getCartProducts = async function () {
+  const Product = mongoose.model("Product"); // Assuming you have a Product model
+  const cartProducts = await Product.find({ _id: { $in: this.cart } });
+  return cartProducts;
+};
+
+module.exports = mongoose.model("User", userSchema);
